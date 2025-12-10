@@ -93,16 +93,6 @@ const tableUi = {
           :ui="{ icon: { trailing: { pointer: '' } } }" 
           color="gray"
         />
-
-        <USelect
-          v-model="selectedSchoolId"
-          :options="[
-            { label: 'Semua sekolah', value: 'all' },
-            ...schools.map((s) => ({ label: s.name, value: s.id })),
-          ]"
-          size="xs"
-          color="gray"
-        />
       </div>
     </div>
 

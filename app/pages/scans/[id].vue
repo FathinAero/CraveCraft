@@ -159,18 +159,48 @@ const foodTypeClass = (type: FoodType): string => {
             <li
               v-for="food in scan.foods"
               :key="food.id"
-              class="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 transition-colors -mx-2 px-3"
+              class="flex items-center justify-between gap-3"
             >
-              <span class="text-sm text-slate-700">{{ food.name }}</span>
-              <span
+              <div class="flex items-center gap-3 min-w-0">
+                <!-- thumbnail 1:1 -->
+                <div
+                  class="w-8 h-8 rounded-md overflow-hidden bg-slate-100 ring-1 ring-slate-200 shrink-0"
+                >
+                  <img
+                    v-if="food.image"
+                    :src="food.image"
+                    :alt="food.name"
+                    class="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                  <div
+                    v-else
+                    class="w-full h-full flex items-center justify-center text-[10px] font-semibold text-slate-500"
+                  >
+                    {{ food.name?.[0] ?? '?' }}
+                  </div>
+                </div>
+
+                <!-- nama makanan -->
+                <span class="truncate">
+                  {{ food.name }}
+                </span>
+              </div>
+
+              <!-- badge tipe -->
+              <UBadge
+                color="neutral"
+                variant="solid"
+                size="sm"
                 :class="[
-                  'text-[10px] font-semibold px-2.5 py-0.5 rounded-md uppercase tracking-wide border border-transparent',
+                  'rounded-full px-3 py-1 text-[11px] uppercase tracking-wide',
                   foodTypeClass(food.type),
                 ]"
               >
                 {{ food.type }}
-              </span>
+              </UBadge>
             </li>
+
           </ul>
         </UCard>
       </div>

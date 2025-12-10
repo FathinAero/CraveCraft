@@ -38,7 +38,8 @@ export function useScans() {
           food:food_id (
             id,
             name,
-            type
+            type,
+            image
           )
         )
       `)

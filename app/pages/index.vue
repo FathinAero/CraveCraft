@@ -1,17 +1,12 @@
 <script setup lang="ts">
-import type { Scan } from '~/types/scan'
-import type { TableColumn } from '@nuxt/ui'
-
-type ScanRow = Scan & {
-  school: string
-  scanner: string
-}
-
-const totalScans = computed(() => scans.value.length)
+import type { Food, FoodType, Scan } from '~/types/scan'
 
 const { scans, fetchScans, loading, error } = useScans()
 
-await useAsyncData('dashboard-scans', () => fetchScans({ limit: 50 }))
+// Biar ranking lebih kebaca, boleh naikin limit
+await useAsyncData('dashboard-scans', () => fetchScans({ limit: 200 }))
+
+const totalScans = computed(() => scans.value.length)
 
 const avg = computed(() => {
   if (!scans.value.length) {
@@ -38,12 +33,6 @@ const avg = computed(() => {
   }
 })
 
-const recent = computed<Scan[]>(() =>
-  [...scans.value]
-    .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
-    .slice(0, 5),
-)
-
 type LowestCategory = {
   key: 'protein' | 'carbs' | 'veg' | 'fruit'
   label: string
@@ -65,34 +54,113 @@ const lowestCategory = computed<LowestCategory | null>(() => {
   return list.reduce((min, item) => (item.value < min.value ? item : min), list[0])
 })
 
-const rows = computed(() =>
-  scans.value.map((s) => ({
-    ...s,
-    school: s.scanner?.school?.name ?? '-',
-    scanner: s.scanner?.name ?? '-',
-  }))
-)
+const foodTypes = ['protein', 'carbs', 'veg', 'fruit'] as const
 
-const columns: TableColumn<ScanRow>[] = [
-  { accessorKey: 'createdAt', header: 'Waktu' },
-  { accessorKey: 'school', header: 'Sekolah' },
-  { accessorKey: 'scanner', header: 'Scanner' },
-  { accessorKey: 'protein', header: 'Protein' },
-  { accessorKey: 'carbs', header: 'Karbo' },
-  { accessorKey: 'veg', header: 'Sayur' },
-  { accessorKey: 'fruit', header: 'Buah' },
-]
-
-const { schedule, fetchByDate } = useFoodSchedule()
-
-const today = new Date().toISOString().slice(0, 10)
-await useAsyncData('today-schedule', () => fetchByDate(today))
-
-const tableUi = {
-  th: 'text-xs font-medium text-slate-500 bg-gray-50',
-  tr: 'border-b border-gray-200 hover:bg-gray-50',
-  td: 'text-xs text-slate-700',
+const typeLabels: Record<FoodType, string> = {
+  protein: 'Protein',
+  carbs: 'Karbohidrat',
+  veg: 'Sayur',
+  fruit: 'Buah',
 }
+
+const getScanValueForType = (scan: Scan, type: FoodType) => {
+  switch (type) {
+    case 'protein':
+      return scan.protein
+    case 'carbs':
+      return scan.carbs
+    case 'veg':
+      return scan.veg
+    case 'fruit':
+      return scan.fruit
+  }
+}
+
+type FoodScore = {
+  food: Food
+  count: number
+  score: number
+}
+
+/**
+ * Ranking per tipe:
+ * - count = seberapa sering makanan itu muncul di scan
+ * - score = akumulasi "persentase dimakan" dari scan sesuai tipe-nya
+ *
+ * Ini nyambung sama note BE "paling sering habis",
+ * karena kalau persentase dimakan tinggi, score-nya naik.
+ */
+const rankingByType = computed<Record<FoodType, FoodScore[]>>(() => {
+  const maps: Record<FoodType, Map<number, FoodScore>> = {
+    protein: new Map(),
+    carbs: new Map(),
+    veg: new Map(),
+    fruit: new Map(),
+  }
+
+  for (const s of scans.value) {
+    for (const f of s.foods ?? []) {
+      const map = maps[f.type]
+      const existing = map.get(f.id) ?? { food: f, count: 0, score: 0 }
+
+      existing.count += 1
+      existing.score += getScanValueForType(s, f.type)
+
+      map.set(f.id, existing)
+    }
+  }
+
+  const out = {} as Record<FoodType, FoodScore[]>
+
+  for (const t of foodTypes) {
+    out[t] = Array
+      .from(maps[t].values())
+      .sort((a, b) => b.score - a.score || b.count - a.count)
+  }
+
+  return out
+})
+
+const topFoodByType = computed<Record<FoodType, FoodScore | null>>(() => {
+  return {
+    protein: rankingByType.value.protein[0] ?? null,
+    carbs: rankingByType.value.carbs[0] ?? null,
+    veg: rankingByType.value.veg[0] ?? null,
+    fruit: rankingByType.value.fruit[0] ?? null,
+  }
+})
+
+const foodTypeClass = (type: FoodType): string => {
+  switch (type) {
+    case 'protein':
+      return 'bg-red-100 text-red-700 ring-1 ring-red-600/20'
+    case 'carbs':
+      return 'bg-sky-100 text-sky-700 ring-1 ring-sky-600/20'
+    case 'veg':
+      return 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-600/20'
+    case 'fruit':
+      return 'bg-amber-100 text-amber-700 ring-1 ring-amber-600/20'
+    default:
+      return 'bg-gray-100 text-gray-700 ring-1 ring-gray-600/20'
+  }
+}
+
+const foodTypeSurfaceClass = (type: FoodType): string => {
+  switch (type) {
+    case 'protein':
+      return 'border-red-100 bg-red-50/50'
+    case 'carbs':
+      return 'border-sky-100 bg-sky-50/50'
+    case 'veg':
+      return 'border-emerald-100 bg-emerald-50/50'
+    case 'fruit':
+      return 'border-amber-100 bg-amber-50/50'
+    default:
+      return 'border-gray-100 bg-gray-50/50'
+  }
+}
+
+
 </script>
 
 <template>
@@ -114,6 +182,7 @@ const tableUi = {
       </p>
     </div>
 
+    <!-- Summary cards -->
     <div class="grid gap-4 md:grid-cols-4">
       <UCard class="border border-gray-200 bg-white shadow-sm">
         <div class="flex items-center justify-between mb-1">
@@ -176,46 +245,96 @@ const tableUi = {
       </UCard>
     </div>
 
+    <!-- Ranking card -->
     <UCard class="border border-gray-200 bg-white shadow-sm">
-      <div class="flex items-center justify-between mb-4 gap-2">
-        <h3 class="text-sm font-medium text-slate-900">
-          Scan Terbaru
-        </h3>
-        <UButton
-          variant="ghost"
-          color="gray"
-          size="xs"
-          to="/scans"
-        >
-          Lihat semua
-        </UButton>
+      <div class="flex items-center justify-between gap-3 mb-5">
+        <div class="space-y-1">
+          <h3 class="text-base font-semibold text-slate-900">
+            Ranking makanan paling sering dimakan
+          </h3>
+          <p class="text-xs text-slate-500">
+            Top 1 per kategori berdasarkan seluruh data scan yang tersedia.
+          </p>
+        </div>
+
+        <div class="text-[11px] text-slate-500">
+          Total scan
+          <span class="ml-1 font-semibold text-slate-700">
+            {{ totalScans }}
+          </span>
+        </div>
       </div>
 
-      <UTable
-        :data="rows"
-        :columns="columns"
-        :ui="tableUi"
+      <div
+        v-if="!totalScans"
+        class="text-xs text-slate-500"
       >
-        <template #createdAt-cell="{ getValue }">
-          {{ new Date(getValue() as string).toLocaleString('id-ID', {
-            dateStyle: 'medium',
-            timeStyle: 'short',
-          }) }}
-        </template>
+        Belum ada data scan untuk menghitung ranking.
+      </div>
 
-        <template #protein-cell="{ getValue }">
-          {{ ((getValue() as number) * 100).toFixed(0) }}%
-        </template>
-        <template #carbs-cell="{ getValue }">
-          {{ ((getValue() as number) * 100).toFixed(0) }}%
-        </template>
-        <template #veg-cell="{ getValue }">
-          {{ ((getValue() as number) * 100).toFixed(0) }}%
-        </template>
-        <template #fruit-cell="{ getValue }">
-          {{ ((getValue() as number) * 100).toFixed(0) }}%
-        </template>
-      </UTable>
+      <ul
+        v-else
+        class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
+      >
+        <li
+          v-for="t in foodTypes"
+          :key="t"
+          :class="[
+            'rounded-xl border p-4',
+            'transition hover:shadow-sm',
+            foodTypeSurfaceClass(t),
+          ]"
+        >
+          <div class="flex items-center justify-between">
+            <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+              {{ typeLabels[t] }}
+            </span>
+
+            <span
+              :class="[
+                'text-[10px] font-semibold px-2.5 py-1 rounded-full uppercase tracking-wide',
+                foodTypeClass(t),
+              ]"
+            >
+              {{ t }}
+            </span>
+          </div>
+
+          <div class="mt-4 flex items-center gap-3">
+            <!-- thumbnail 1:1 -->
+            <div
+              class="w-10 h-10 rounded-lg overflow-hidden bg-slate-100 ring-1 ring-slate-200 shrink-0"
+            >
+              <img
+                v-if="topFoodByType[t]?.food.image"
+                :src="topFoodByType[t]!.food.image!"
+                :alt="topFoodByType[t]!.food.name"
+                class="w-full h-full object-cover"
+                loading="lazy"
+              />
+              <div
+                v-else
+                class="w-full h-full flex items-center justify-center text-xs font-semibold text-slate-500"
+              >
+                {{ topFoodByType[t]?.food.name?.[0] ?? '-' }}
+              </div>
+            </div>
+
+            <div class="min-w-0">
+              <p class="text-sm font-semibold text-slate-900 truncate">
+                {{ topFoodByType[t]?.food.name ?? '-' }}
+              </p>
+              <p class="text-[11px] text-slate-500">
+                <span v-if="topFoodByType[t]">
+                  {{ topFoodByType[t]!.count }}x
+                </span>
+                <span v-else>-</span>
+              </p>
+            </div>
+          </div>
+        </li>
+      </ul>
     </UCard>
+
   </div>
 </template>

@@ -16,7 +16,9 @@ export interface Food {
   id: number
   name: string
   type: FoodType
+  image?: string | null
 }
+
 
 export interface Scan {
   id: number

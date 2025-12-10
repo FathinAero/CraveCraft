@@ -2,8 +2,9 @@
 const route = useRoute()
 
 const links = [
-  { label: 'Dashboard', to: '/' },
-  { label: 'Scans', to: '/scans' },
+  { label: 'Dashboard', to: '/', icon: 'i-heroicons-home' },
+  { label: 'Scans', to: '/scans', icon: 'i-heroicons-qr-code' },
+  { label: 'Food Schedule', to: '/food-schedule', icon: 'i-heroicons-calendar-days' }
 ]
 </script>
 
@@ -26,6 +27,7 @@ const links = [
           </div>
         </template>
 
+        <!-- simple + aman: tetap pakai nav manual -->
         <nav class="flex-1 overflow-y-auto px-3 py-4 space-y-1">
           <NuxtLink
             v-for="link in links"
@@ -34,10 +36,11 @@ const links = [
             class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors"
             :class="
               route.path === link.to
-                ? 'bg-emerald-50 text-emerald-600 font-medium' // Active state (light)
-                : 'text-slate-600 hover:text-slate-900 hover:bg-gray-100' // Inactive state (light)
+                ? 'bg-emerald-50 text-emerald-600 font-medium'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-gray-100'
             "
           >
+            <UIcon :name="link.icon" class="h-4 w-4 shrink-0" />
             <span>{{ link.label }}</span>
           </NuxtLink>
         </nav>
